@@ -1,101 +1,115 @@
-# Snake Game Implementation
 import pygame
 import random
+import sys
+
+# Initialize Pygame
+pygame.init()
 
 # Constants
-WIDTH, HEIGHT = 600, 400
-GRID_SIZE = 20
-FPS = 10
+GRID_SIZE = 20  # Number of cells in grid (20x20)
+CELL_SIZE = 20  # Size of each cell in pixels
+SCREEN_WIDTH = GRID_SIZE * CELL_SIZE
+SCREEN_HEIGHT = GRID_SIZE * CELL_SIZE
+FPS = 10  # Frames per second (snake speed)
 
 # Colors
 BLACK = (0, 0, 0)
-WHITE = (255, 255, 255)
 GREEN = (0, 255, 0)
 RED = (255, 0, 0)
+WHITE = (255, 255, 255)
 
-class Snake:
+# Directions
+UP = (0, -1)
+DOWN = (0, 1)
+LEFT = (-1, 0)
+RIGHT = (1, 0)
+
+# Initialize screen
+screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
+pygame.display.set_caption("Snake Game")
+clock = pygame.time.Clock()
+
+# Font for score and game over
+font = pygame.font.Font(None, 36)
+
+class SnakeGame:
     def __init__(self):
-        self.positions = [(WIDTH // GRID_SIZE // 2, HEIGHT // GRID_SIZE // 2)]
-        self.direction = "RIGHT"
+        self.snake = [(GRID_SIZE // 2, GRID_SIZE // 2)]  # Starting position (array of positions)
+        self.direction = RIGHT  # Initial direction
+        self.food = self.generate_food()
         self.score = 0
-        
-    def move(self):
-        head_x, head_y = self.positions[0]
-        
-        if self.direction == "UP":
-            new_head = (head_x, head_y - 1)
-        elif self.direction == "DOWN":
-            new_head = (head_x, head_y + 1)
-        elif self.direction == "LEFT":
-            new_head = (head_x - 1, head_y)
-        else: # RIGHT
-            new_head = (head_x + 1, head_y)
-            
-        if not self.is_valid_move(new_head):
-            return False
-            
-        self.positions.insert(0, new_head)
-        
-        if len(self.positions) > WIDTH // GRID_SIZE * HEIGHT // GRID_SIZE:
-            self.positions.pop()
-            
-        return True
-        
-    def is_valid_move(self, position):
-        head = position
-        # Check boundaries
-        grid_x = int((head[0] * GRID_SIZE))
-        grid_y = int((head[1] * GRID_SIZE))
-        
-        if (grid_x >= WIDTH or grid_x < 0) and WIDTH // GRID_SIZE:
-            return False
-            
-        if (grid_y >= HEIGHT or grid_y < 0) and HEIGHT // GRID_SIZE:
-            return False
-            
-        # Check self-collision
-        if head in self.positions[1:]:
-            return False
-            
-        return True
-        
-    def grow(self):
-        tail_x, tail_y = self.positions[-1]
-        
-        # Determine direction of growth (last segment follows the last move)
-        if len(self.positions) > 0:
-            prev_head = self.positions[1] if len(self.positions) > 1 else None
-            
-            if prev_head is not None and head != prev_head: 
-                dx, dy = head[0] - tail_x, head[1] - tail_y
-                
-                # If the snake moves right/left, grow horizontally
-                if dx == GRID_SIZE:
-                    new_segment = (tail_x + 2*GRID_SIZE//4, tail_y)
-                elif dx == -GRID_SIZE:
-                    new_segment = (tail_x - 2*GRID_SIZE//4, tail_y)
-                # If the snake moves up/down, grow vertically
-                else: 
-                    if dy > GRID_SIZE and head[1] < self.positions[-1][1]:
-                        new_segment = (tail_x, tail_y + 2*GRID_SIZE//4)
-                    elif dy == -GRID_SIZE:
-                        new_segment = (tail_x, tail_y - 2*GRID_SIZE//4)
-            else: # Default growth direction
-                if self.direction == "UP":
-                    new_segment = (int(tail_x), int(tail_y) + GRID_SIZE)
-                elif self.direction == "DOWN":
-                    new_segment = (int(tail_x), int(tail_y) - GRID_SIZE)
-                elif self.direction == "LEFT":
-                    new_segment = (int(tail_x) + GRID_SIZE, tail_y)
-                else: # RIGHT
-                    if dx < 0 and head != self.positions[1]: 
-                        return False
-                        
-            Actually, the code seems to be cut off here - I'll implement this more clearly in a full version
+        self.game_over = False
 
-        This implementation is incomplete. To complete it properly, please use:
-        
-        ```tool
-        TOOL_NAME: read_file
-        BEGIN_ARG: filepath
-        snake_game.py
+    def generate_food(self):
+        while True:
+            food = (random.randint(0, GRID_SIZE - 1), random.randint(0, GRID_SIZE - 1))
+            if food not in self.snake:
+                return food
+
+    def handle_input(self):
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+            elif event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_UP and self.direction != DOWN:
+                    self.direction = UP
+                elif event.key == pygame.K_DOWN and self.direction != UP:
+                    self.direction = DOWN
+                elif event.key == pygame.K_LEFT and self.direction != RIGHT:
+                    self.direction = LEFT
+                elif event.key == pygame.K_RIGHT and self.direction != LEFT:
+                    self.direction = RIGHT
+
+    def move(self):
+        head_x, head_y = self.snake[0]
+        dx, dy = self.direction
+        new_head = ((head_x + dx) % GRID_SIZE, (head_y + dy) % GRID_SIZE)  # Wrap around walls
+
+        # Check self-collision
+        if new_head in self.snake:
+            self.game_over = True
+            return
+
+        # Insert new head
+        self.snake.insert(0, new_head)
+
+        # Check if ate food
+        if new_head == self.food:
+            self.score += 1
+            self.food = self.generate_food()
+        else:
+            # Remove tail
+            self.snake.pop()
+
+    def draw(self):
+        screen.fill(BLACK)
+
+        # Draw snake
+        for segment in self.snake:
+            pygame.draw.rect(screen, GREEN, (segment[0] * CELL_SIZE, segment[1] * CELL_SIZE, CELL_SIZE, CELL_SIZE))
+
+        # Draw food
+        pygame.draw.rect(screen, RED, (self.food[0] * CELL_SIZE, self.food[1] * CELL_SIZE, CELL_SIZE, CELL_SIZE))
+
+        # Draw score
+        score_text = font.render(f"Score: {self.score}", True, WHITE)
+        screen.blit(score_text, (10, 10))
+
+        if self.game_over:
+            game_over_text = font.render("Game Over!", True, WHITE)
+            screen.blit(game_over_text, (SCREEN_WIDTH // 2 - 100, SCREEN_HEIGHT // 2 - 20))
+
+        pygame.display.flip()
+
+    def run(self):
+        while True:
+            self.handle_input()
+            if not self.game_over:
+                self.move()
+            self.draw()
+            clock.tick(FPS)
+
+if __name__ == "__main__":
+    game = SnakeGame()
+    game.run()
