@@ -1,93 +1,115 @@
-import curses
+import pygame
 import random
+import sys
 
-GRID_HEIGHT = 20
-GRID_WIDTH = 40
-SNAKE_CHAR = '#'
-FOOD_CHAR = 'O'
-BORDER_OFFSET = 1  # For the border around the grid
+# Initialize Pygame
+pygame.init()
 
-def generate_food(snake):
-    while True:
-        food = (random.randint(0, GRID_HEIGHT - 1), random.randint(0, GRID_WIDTH - 1))
-        if food not in snake:
-            return food
+# Constants
+GRID_SIZE = 20  # Number of cells in grid (20x20)
+CELL_SIZE = 20  # Size of each cell in pixels
+SCREEN_WIDTH = GRID_SIZE * CELL_SIZE
+SCREEN_HEIGHT = GRID_SIZE * CELL_SIZE
+FPS = 10  # Frames per second (snake speed)
 
-def main(stdscr):
-    curses.curs_set(0)  # Hide cursor
-    stdscr.nodelay(True)
-    stdscr.timeout(100)  # 100ms timeout for getch (10 FPS)
+# Colors
+BLACK = (0, 0, 0)
+GREEN = (0, 255, 0)
+RED = (255, 0, 0)
+WHITE = (255, 255, 255)
 
-    # Create a window with borders
-    win = curses.newwin(GRID_HEIGHT + 2, GRID_WIDTH + 2, 0, 0)
-    win.keypad(True)
-    win.border(0)
-    win.timeout(100)
+# Directions
+UP = (0, -1)
+DOWN = (0, 1)
+LEFT = (-1, 0)
+RIGHT = (1, 0)
 
-    # Initial snake position (list of (y, x) tuples)
-    snake = [(GRID_HEIGHT // 2, GRID_WIDTH // 2 + i) for i in range(3, 0, -1)]
-    direction = (0, 1)  # (dy, dx) - right
-    food = generate_food(snake)
-    score = 0
+# Initialize screen
+screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
+pygame.display.set_caption("Snake Game")
+clock = pygame.time.Clock()
 
-    # Direction mappings
-    directions = {
-        curses.KEY_UP: (-1, 0),
-        curses.KEY_DOWN: (1, 0),
-        curses.KEY_LEFT: (0, -1),
-        curses.KEY_RIGHT: (0, 1)
-    }
+# Font for score and game over
+font = pygame.font.Font(None, 36)
 
-    while True:
-        # Handle input
-        key = win.getch()
-        if key in directions:
-            new_dir = directions[key]
-            # Prevent reversing direction
-            if new_dir != (-direction[0], -direction[1]):
-                direction = new_dir
+class SnakeGame:
+    def __init__(self):
+        self.snake = [(GRID_SIZE // 2, GRID_SIZE // 2)]  # Starting position (array of positions)
+        self.direction = RIGHT  # Initial direction
+        self.food = self.generate_food()
+        self.score = 0
+        self.game_over = False
 
-        # Move snake
-        head_y, head_x = snake[0]
-        dy, dx = direction
-        new_head = ((head_y + dy) % GRID_HEIGHT, (head_x + dx) % GRID_WIDTH)
+    def generate_food(self):
+        while True:
+            food = (random.randint(0, GRID_SIZE - 1), random.randint(0, GRID_SIZE - 1))
+            if food not in self.snake:
+                return food
+
+    def handle_input(self):
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+            elif event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_UP and self.direction != DOWN:
+                    self.direction = UP
+                elif event.key == pygame.K_DOWN and self.direction != UP:
+                    self.direction = DOWN
+                elif event.key == pygame.K_LEFT and self.direction != RIGHT:
+                    self.direction = LEFT
+                elif event.key == pygame.K_RIGHT and self.direction != LEFT:
+                    self.direction = RIGHT
+
+    def move(self):
+        head_x, head_y = self.snake[0]
+        dx, dy = self.direction
+        new_head = ((head_x + dx) % GRID_SIZE, (head_y + dy) % GRID_SIZE)  # Wrap around walls
 
         # Check self-collision
-        if new_head in snake:
-            break  # Game over
+        if new_head in self.snake:
+            self.game_over = True
+            return
 
         # Insert new head
-        snake.insert(0, new_head)
+        self.snake.insert(0, new_head)
 
         # Check if ate food
-        if new_head == food:
-            score += 1
-            food = generate_food(snake)
+        if new_head == self.food:
+            self.score += 1
+            self.food = self.generate_food()
         else:
             # Remove tail
-            snake.pop()
+            self.snake.pop()
 
-        # Clear window and redraw border
-        win.clear()
-        win.border(0)
-
-        # Draw score
-        win.addstr(0, 2, f"Score: {score}")
+    def draw(self):
+        screen.fill(BLACK)
 
         # Draw snake
-        for y, x in snake:
-            win.addch(y + BORDER_OFFSET, x + BORDER_OFFSET, SNAKE_CHAR)
+        for segment in self.snake:
+            pygame.draw.rect(screen, GREEN, (segment[0] * CELL_SIZE, segment[1] * CELL_SIZE, CELL_SIZE, CELL_SIZE))
 
         # Draw food
-        win.addch(food[0] + BORDER_OFFSET, food[1] + BORDER_OFFSET, FOOD_CHAR)
+        pygame.draw.rect(screen, RED, (self.food[0] * CELL_SIZE, self.food[1] * CELL_SIZE, CELL_SIZE, CELL_SIZE))
 
-        win.refresh()
+        # Draw score
+        score_text = font.render(f"Score: {self.score}", True, WHITE)
+        screen.blit(score_text, (10, 10))
 
-    # Game over
-    win.addstr(GRID_HEIGHT // 2, GRID_WIDTH // 2 - 5, "Game Over!")
-    win.refresh()
-    win.nodelay(False)
-    win.getch()
+        if self.game_over:
+            game_over_text = font.render("Game Over!", True, WHITE)
+            screen.blit(game_over_text, (SCREEN_WIDTH // 2 - 100, SCREEN_HEIGHT // 2 - 20))
+
+        pygame.display.flip()
+
+    def run(self):
+        while True:
+            self.handle_input()
+            if not self.game_over:
+                self.move()
+            self.draw()
+            clock.tick(FPS)
 
 if __name__ == "__main__":
-    curses.wrapper(main)
+    game = SnakeGame()
+    game.run()
